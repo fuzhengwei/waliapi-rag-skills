@@ -4,6 +4,8 @@
 
 WaLiAPI 实现 MCP (Model Context Protocol) 2024-11-05 版本，支持 SSE (Server-Sent Events) 传输。
 
+两大能力域：**Knowledge Base (RAG)** — 文档分块→向量化→语义检索；**Wiki** — 文档摄入→结构化页面→知识图谱。
+
 ### 端点
 
 | 端点 | 方法 | 说明 |
@@ -279,9 +281,216 @@ RAG 问答：检索相关片段 → LLM 生成回答 → 返回回答 + 来源�
 | included_files | array | ❌ | 包含文件扩展名（如 [".md", ".txt"]）|
 | max_file_size | integer | ❌ | 最大文件大小（字节，默认 1MB）|
 
-## 配置参数调优
+---
 
-### 搜索模式选择指南
+## Wiki 工具
+
+Wiki 是结构化知识系统：文档摄入后自动生成结构化 Wiki 页面（含 frontmatter、标签、wikilinks），支持知识图谱关联。
+
+### Wiki 只读工具
+
+#### list_wiki_projects
+
+列出所有 Wiki 项目。
+
+**参数：** 无
+
+**返回：** 项目 ID、名称、页面数、源数、描述
+
+---
+
+#### get_wiki_project
+
+获取 Wiki 项目详情和统计。
+
+**参数：**
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| project_id | string | ✅ | Wiki 项目 ID |
+
+**返回：** 项目信息、页面数、源数、标签、最近摄入时间
+
+---
+
+#### list_wiki_pages
+
+列出 Wiki 项目中的所有页面。
+
+**参数：**
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| project_id | string | ✅ | Wiki 项目 ID |
+
+**返回：** 页面路径、标题、类型（entity/concept/summary/index/log）
+
+---
+
+#### get_wiki_page
+
+读取 Wiki 页面的完整 Markdown 内容。
+
+**参数：**
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| project_id | string | ✅ | Wiki 项目 ID |
+| path | string | ✅ | 页面路径（如 'index.md' 或 'guides/api.md'）|
+
+**返回：** 页面完整 Markdown 内容（含 frontmatter）
+
+---
+
+#### search_wiki
+
+搜索 Wiki 页面。按标题、路径、内容匹配，返回摘要片段。
+
+**参数：**
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|------|------|------|------|------|
+| project_id | string | ✅ | — | Wiki 项目 ID |
+| query | string | ✅ | — | 搜索关键词 |
+| top_k | integer | ❌ | 10 | 最大返回结果数 |
+
+**返回：** 匹配页面的 page_id、路径、标题、分数、摘要片段、页面类型
+
+**搜索机制：**
+
+- 标题和路径 LIKE 模糊匹配
+- 逐文件读取内容做子串匹配
+- 无 FTS5/向量检索（受限于 Wiki 页面粒度，非 chunk 粒度）
+- 适合结构化知识检索，比 RAG chunk 更精确
+
+---
+
+#### ask_wiki
+
+Wiki 问答：检索相关页面 → 读取完整页面内容 → LLM 生成回答。
+
+**参数：**
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|------|------|------|------|------|
+| project_id | string | ✅ | — | Wiki 项目 ID |
+| question | string | ✅ | — | 问题 |
+| top_k | integer | ❌ | 5 | 检索页面数 |
+| model | string | ❌ | 项目配置 | LLM 模型名 |
+
+**返回结构：**
+
+1. AI 回答（基于完整 Wiki 页面内容生成，非 chunk）
+2. 来源引用列表（页面路径、标题、分数、摘要）
+3. Token 使用统计
+
+**与 `ask_knowledge_base` 的区别：**
+
+- `ask_knowledge_base`：基于 chunk（~512 tokens）检索 + 向量相似度
+- `ask_wiki`：基于完整页面（~2000 chars）检索 + LLM 生成，上下文更完整
+
+**模型选择逻辑：**
+
+- 如果指定了 `model` 参数，使用该模型
+- 否则使用 Wiki 项目配置的 `chat_model`
+- 最终回退到 `gpt-4o`
+
+---
+
+#### get_wiki_tags
+
+获取 Wiki 项目的标签列表。标签从页面 frontmatter 自动提取。
+
+**参数：**
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|------|------|------|------|------|
+| project_id | string | ✅ | — | Wiki 项目 ID |
+| limit | integer | ❌ | 15 | 返回标签数 |
+
+**返回：** 标签词、出现次数（按频率降序）
+
+---
+
+#### get_wiki_graph
+
+获取 Wiki 项目的知识图谱数据。
+
+**参数：**
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| project_id | string | ✅ | Wiki 项目 ID |
+
+**返回：**
+
+- 节点列表（id、label、path、node_type、link_count）
+- 边列表（source、target、edge_type、weight）
+
+用于可视化知识关联网络。
+
+---
+
+#### list_wiki_sources
+
+列出 Wiki 项目的源资料及摄入状态。
+
+**参数：**
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| project_id | string | ✅ | Wiki 项目 ID |
+
+**返回：** 源资料 ID、文件名、类型、状态、页面数、错误信息
+
+---
+
+### Wiki 写入工具
+
+#### save_wiki_page
+
+创建或更新 Wiki 页面。保存时自动提取 frontmatter 标签、wikilinks，更新知识图谱。
+
+**参数：**
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| project_id | string | ✅ | Wiki 项目 ID |
+| path | string | ✅ | 页面路径 |
+| content | string | ✅ | Markdown 内容（含 frontmatter）|
+
+**处理流程：**
+
+1. 解析 frontmatter（YAML）
+2. 提取标签（frontmatter tags 字段）
+3. 提取 wikilinks（`[[page]]` 格式）
+4. 估算 token 数
+5. 计算内容 hash
+6. 判定页面类型（entity/concept/summary/index/log）
+7. 写入数据库 + 文件系统
+
+---
+
+#### ingest_wiki_source
+
+触发 Wiki 源资料摄入。源文件解析 → 生成结构化 Wiki 页面 → 提取标签和 wikilinks。
+
+**参数：**
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| project_id | string | ✅ | Wiki 项目 ID |
+| source_id | string | ✅ | 源资料 ID（从 `list_wiki_sources` 获取）|
+
+**返回：** 创建页面数、页面路径列表
+
+摄入是异步的，通过 `list_wiki_pages` 检查进度。
+
+---
+
+## 配置参数调优（RAG）
+
+### 搜索模式选择指南（RAG）
 
 | 场景 | 推荐模式 | 原因 |
 |------|---------|------|
@@ -291,13 +500,13 @@ RAG 问答：检索相关片段 → LLM 生成回答 → 返回回答 + 来源�
 | 中文自然语言 | hybrid | CJK 双字分词 + 向量 |
 | 默认 | hybrid | 覆盖大多数场景 |
 
-### 权重调优
+### 权重调优（RAG）
 
 - `vector_weight=0.7, keyword_weight=0.3`（默认）：语义优先，关键词补充
 - `vector_weight=0.5, keyword_weight=0.5`：均衡模式
 - `vector_weight=0.3, keyword_weight=0.7`：关键词优先（代码库搜索）
 
-### top_k 调优
+### top_k 调优（RAG）
 
 - `top_k=3`：快速查询，只看最相关的
 - `top_k=5`（默认）：标准查询
@@ -314,3 +523,5 @@ RAG 问答：检索相关片段 → LLM 生成回答 → 返回回答 + 来源�
 | 超时 | 网络或服务问题 | 检查服务状态 |
 | embedding 失败 | 无可用 embedding 渠道 | 配置支持 embedding 的渠道 |
 | RAG 回答失败 | 无可用 chat 渠道 | 配置支持 chat 的渠道 |
+| Wiki 无页面 | 先添加源资料并执行摄入 | 调用 `list_wiki_sources` + `ingest_wiki_source` |
+| Wiki 项目不存在 | 项目 ID 错误或项目未创建 | 调用 `list_wiki_projects` 确认 |

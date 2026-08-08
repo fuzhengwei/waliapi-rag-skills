@@ -23,7 +23,7 @@ import queue
 
 # ── Config ───────────────────────────────────────────────────────
 
-CONFIG_PATH = os.path.expanduser("~/.qclaw/skills/waliapi-rag/config.json")
+CONFIG_PATH = os.path.expanduser("~/.qclaw/skills/waliapi-skills/config.json")
 DEFAULT_MCP_URL = "http://127.0.0.1:8777/mcp"
 SSE_TIMEOUT = 30  # seconds
 REQUEST_TIMEOUT = 30  # seconds for POST

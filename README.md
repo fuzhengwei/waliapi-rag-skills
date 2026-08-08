@@ -1,16 +1,16 @@
 <div align="center">
 
-# waliapi-rag-skills
+# waliapi-skills
 
-### WaLiAPI 知识库 RAG 技能 · 通过 MCP 连接本地知识库
+### WaLiAPI 知识库与 Wiki 技能 · 通过 MCP 连接本地知识服务
 
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](./LICENSE)
 [![MCP](https://img.shields.io/badge/MCP-2024--11--05-blue.svg)](https://modelcontextprotocol.io)
-[![WaLiAPI](https://img.shields.io/badge/WaLiAPI-0.1.1%2B-orange.svg)](https://github.com/fuzhengwei/WaLiAPI)
+[![WaLiAPI](https://img.shields.io/badge/WaLiAPI-0.2.0%2B-orange.svg)](https://github.com/fuzhengwei/WaLiAPI)
 
 </div>
 
-> **waliapi-rag-skills** 是 [WaLiAPI](https://github.com/fuzhengwei/WaLiAPI) 的配套技能包。通过 MCP (Model Context Protocol) 连接 WaLiAPI 本地知识库服务，让 AI Agent 具备语义搜索、RAG 问答、文档管理等能力。
+> **waliapi-skills** 是 [WaLiAPI](https://github.com/fuzhengwei/WaLiAPI) 的配套技能包。通过 MCP (Model Context Protocol) 连接 WaLiAPI 本地知识服务，让 AI Agent 具备 RAG 语义搜索、RAG 问答、文档管理、Wiki 知识页面管理、Wiki 搜索与问答、知识图谱等能力。
 
 ---
 
@@ -31,14 +31,17 @@
 
 ## 🎯 这是什么
 
-**WaLiAPI** 是一款本地运行的 LLM API 网关桌面软件，内置知识库与 RAG 能力，支持多渠道模型管理、协议转换、安全审计等功能。
+**WaLiAPI** 是一款本地运行的 LLM API 网关桌面软件，内置知识库（RAG）与 Wiki 知识系统，支持多渠道模型管理、协议转换、安全审计等功能。
 
-**waliapi-rag-skills** 是 WaLiAPI 的配套技能包，专门用于在 AI Agent（如 QClaw）中调用 WaLiAPI 的知识库 MCP 服务。它封装了 MCP JSON-RPC 协议（SSE 传输），提供统一的命令行接口，让 Agent 可以：
+**waliapi-skills** 是 WaLiAPI 的配套技能包，专门用于在 AI Agent（如 QClaw）中调用 WaLiAPI 的 MCP 服务。它封装了 MCP JSON-RPC 协议（SSE 传输），提供统一的命令行接口，让 Agent 可以：
 
-- 🔍 **语义搜索** — 向量 + 关键词混合检索
+- 🔍 **RAG 语义搜索** — 向量 + 关键词混合检索
 - 🤖 **RAG 问答** — 检索 + LLM 生成，一步到位
 - 📄 **文档管理** — 上传、读取、删除、批量导入
 - 📚 **知识库管理** — 创建、更新、删除、索引构建
+- 📖 **Wiki 页面浏览** — 结构化知识页面、知识图谱
+- 🏷️ **Wiki 标签导航** — 标签检索、点击搜索
+- 💬 **Wiki 问答** — 基于完整页面的 LLM 问答
 
 ```
 ┌──────────────┐     MCP/SSE     ┌──────────────┐     HTTP      ┌──────────────┐
@@ -46,12 +49,16 @@
 │  (QClaw等)   │   /mcp 端点      │  本地网关     │   OpenAI协议   │  (多渠道)    │
 └──────────────┘                  └──────────────┘               └──────────────┘
                                          │
-                                         │ SQLite + HNSW + FTS5
-                                         ▼
-                                  ┌──────────────┐
-                                  │   知识库      │
-                                  │  文档/向量/索引│
-                                  └──────────────┘
+                          ┌──────────────┼──────────────┐
+                          │              │              │
+                     SQLite + HNSW    Wiki 文件     知识图谱
+                     + FTS5 索引      + frontmatter  + wikilinks
+                          │
+                          ▼
+                  ┌──────────────┐          ┌──────────────┐
+                  │  Knowledge Base │        │    Wiki      │
+                  │  文档/向量/索引 │        │ 结构化页面/标签 │
+                  └──────────────┘          └──────────────┘
 ```
 
 ---
@@ -61,9 +68,10 @@
 | 条件 | 说明 |
 |:---|:---|
 | **WaLiAPI 已安装并运行** | 下载地址：[WaLiAPI Releases](https://github.com/fuzhengwei/WaLiAPI/releases) |
-| **WaLiAPI 版本 ≥ 0.1.1** | MCP 知识库服务从 v0.1.1 开始支持 |
-| **至少一个渠道已配置** | 需要支持 embedding 的渠道（用于文档向量化）和 chat 渠道（用于 RAG 问答） |
-| **至少一个知识库已创建** | 在 WaLiAPI 中创建知识库并启用 MCP 访问 |
+| **WaLiAPI 版本 ≥ 0.2.0** | MCP Wiki 工具从此版本开始支持 |
+| **至少一个渠道已配置** | 需要支持 embedding 的渠道（用于文档向量化）和 chat 渠道（用于 RAG/Wiki 问答） |
+| **RAG：至少一个知识库已创建** | 在 WaLiAPI 中创建知识库并启用 MCP 访问 |
+| **Wiki：至少一个 Wiki 项目已创建** | 在 WaLiAPI 中创建 Wiki 项目 |
 | **Python 3.8+** | 技能脚本运行环境 |
 | **requests 库** | MCP 调用脚本依赖（未安装时自动安装） |
 
@@ -77,7 +85,7 @@
 
 ```bash
 # QClaw 用户
-cp -r . ~/.qclaw/skills/waliapi-rag/
+cp -r . ~/.qclaw/skills/waliapi-skills/
 ```
 
 ### 2. 启动 WaLiAPI
@@ -95,7 +103,7 @@ http://127.0.0.1:8777/mcp
 也可以手动写入配置文件：
 
 ```bash
-cat > ~/.qclaw/skills/waliapi-rag/config.json << 'EOF'
+cat > ~/.qclaw/skills/waliapi-skills/config.json << 'EOF'
 {
   "mcp_url": "http://127.0.0.1:8777/mcp"
 }
@@ -110,22 +118,25 @@ EOF
 - 「搜索一下渠道配置相关的内容」
 - 「把这个文件上传到知识库」
 - 「列出所有知识库」
+- 「列出 Wiki 项目」
+- 「问一下 Wiki，渠道怎么配置？」
+- 「Wiki 里有哪些标签？」
 
 ---
 
 ## 🛠 技能能力
 
-### 🔍 查询类（只读）
+### 🔍 RAG 查询类（只读）
 
 | 能力 | MCP 工具 | 说明 |
 |:---|:---|:---|
 | 列出知识库 | `list_knowledge_bases` | 获取所有 MCP 启用的知识库 |
 | 语义搜索 | `search_knowledge_base` | 向量 + 关键词混合检索，返回匹配片段 + 分数 |
-| RAG 问答 | `ask_knowledge_base` | **首选工具**，检索 + LLM 生成，返回回答 + 来源引用 |
+| RAG 问答 | `ask_knowledge_base` | **RAG 首选工具**，检索 + LLM 生成 |
 | 读取文档 | `read_document` | 读取知识库中指定文档的完整内容 |
 | 知识库统计 | `get_knowledge_base_stats` | 文档数、切片数、Token 数、索引状态 |
 
-### 📝 管理类（写入）
+### 📝 RAG 管理类（写入）
 
 | 能力 | MCP 工具 | 说明 |
 |:---|:---|:---|
@@ -137,6 +148,27 @@ EOF
 | 列出文档 | `list_documents` | 查看知识库中所有文档及处理状态 |
 | 构建索引 | `build_index` | 构建/重建 HNSW 向量索引 |
 | 导入源 | `import_source` | 从 Git/URL/本地目录批量导入 |
+
+### 📖 Wiki 查询类（只读）
+
+| 能力 | MCP 工具 | 说明 |
+|:---|:---|:---|
+| 列出 Wiki 项目 | `list_wiki_projects` | 获取所有 Wiki 项目 |
+| Wiki 项目详情 | `get_wiki_project` | 统计、标签、页面概览 |
+| 列出 Wiki 页面 | `list_wiki_pages` | 所有页面：路径、标题、类型 |
+| 读取 Wiki 页面 | `get_wiki_page` | 完整 Markdown 内容 |
+| 搜索 Wiki | `search_wiki` | 按标题/路径/内容搜索页面 |
+| Wiki 问答 | `ask_wiki` | 基于完整页面的 LLM 问答 |
+| Wiki 标签 | `get_wiki_tags` | 标签列表（frontmatter 提取） |
+| 知识图谱 | `get_wiki_graph` | 页面节点 + wikilinks 边 |
+| Wiki 源资料 | `list_wiki_sources` | 源文件及摄入状态 |
+
+### 📝 Wiki 管理类（写入）
+
+| 能力 | MCP 工具 | 说明 |
+|:---|:---|:---|
+| 保存 Wiki 页面 | `save_wiki_page` | 创建/更新页面，自动提取标签和 wikilinks |
+| 摄入 Wiki 源 | `ingest_wiki_source` | 触发源文件摄入 → 生成结构化页面 |
 
 ---
 
@@ -155,13 +187,24 @@ scripts/mcp_call.py <tool_name> '<json_args>'
 HTTP POST → WaLiAPI /mcp 端点 (SSE 传输)
   │
   ▼
-WaLiAPI 执行知识库操作 → 返回 JSON-RPC 响应
+WaLiAPI 执行知识库/Wiki 操作 → 返回 JSON-RPC 响应
   │
   ▼
 Agent 格式化结果 → 回复用户
 ```
 
-### 搜索模式
+### RAG vs Wiki 选择指南
+
+| 场景 | 推荐 | 原因 |
+|:---|:---|:---|
+| 原始文档搜索 | RAG | chunk 粒度检索，找到精确片段 |
+| 跨文档问答 | RAG | 向量相似度 + 关键词混合 |
+| 结构化知识浏览 | Wiki | 页面粒度，有标题/类型/标签 |
+| 标签导航 | Wiki | frontmatter 标签检索 |
+| 知识图谱关联 | Wiki | wikilinks 可视化 |
+| 精确页面搜索 | Wiki | 按标题/路径匹配 |
+
+### RAG 搜索模式
 
 | 模式 | 说明 | 适用场景 |
 |:---|:---|:---|
@@ -176,7 +219,7 @@ Agent 格式化结果 → 回复用户
 ## 📁 项目结构
 
 ```
-waliapi-rag-skills/
+waliapi-skills/
 ├── SKILL.md                        # 技能定义文件（Agent 读取入口）
 ├── README.md                       # 本文件
 ├── LICENSE                         # MIT 许可证
@@ -230,6 +273,27 @@ Agent：
      来源：readme.md (score: 0.92)
 ```
 
+### Wiki 问答
+
+```
+用户：问一下 Wiki，渠道怎么配置？
+
+Agent：
+  → ask_wiki(project_id="xxx", question="渠道怎么配置")
+  ← 渠道配置步骤：1. 打开设置... 2. 添加渠道...
+     来源：guides/channels.md (score: 0.85)
+```
+
+### Wiki 标签导航
+
+```
+用户：Wiki 里有哪些标签？
+
+Agent：
+  → get_wiki_tags(project_id="xxx", limit=15)
+  ← 渠道(12), 配置(8), API(6), 安全(4)...
+```
+
 ### 语义搜索
 
 ```
@@ -267,10 +331,11 @@ Agent：
 | 问题 | 原因 | 解决方案 |
 |:---|:---|:---|
 | 连接被拒绝 | WaLiAPI 未运行 | 启动 WaLiAPI 桌面应用 |
-| MCP 工具不存在 | WaLiAPI 版本过低 | 升级到 v0.1.1 或更高版本 |
+| MCP 工具不存在 | WaLiAPI 版本过低 | 升级到 v0.2.0 或更高版本 |
 | 知识库为空 | 未创建知识库 | 在 WaLiAPI 中创建知识库 |
+| Wiki 无页面 | 未创建 Wiki 项目或未摄入源 | 创建项目并执行 `ingest_wiki_source` |
 | embedding 失败 | 无可用 embedding 渠道 | 配置支持 embedding 的渠道（如 OpenAI） |
-| RAG 回答失败 | 无可用 chat 渠道 | 配置支持 chat 的渠道 |
+| RAG/Wiki 回答失败 | 无可用 chat 渠道 | 配置支持 chat 的渠道 |
 | 搜索无结果 | 关键词不匹配或知识库为空 | 调整搜索词，或先上传文档 |
 | Python 脚本报错 | 缺少 requests 库 | `pip install requests` |
 
